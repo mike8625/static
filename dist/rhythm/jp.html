@@ -1,0 +1,322 @@
+ <!DOCTYPE html>
+ <html>
+
+ <head>
+   <META charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+   <title>节拍器极简版</title>
+   <style>
+     body,
+     html {
+       padding: 0;
+       margin: 0;
+       height: 100%;
+       -moz-user-select:none; /*火狐*/
+       -webkit-user-select:none; /*webkit浏览器*/
+       -ms-user-select:none; /*IE10*/
+       -khtml-user-select:none; /*早期浏览器*/
+       user-select:none;
+     }
+
+     * {
+       -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+       -webkit-touch-callout: none;
+     }
+
+     .con {
+       width: 320px;
+       margin: 0 auto;
+       padding-top: 26vh;
+       box-sizing: border-box;
+       height: 100%;
+     }
+
+     .speed {
+       text-align: center;
+     }
+     
+     #rVal {
+       min-width: 60Px;
+     }
+
+     .speed b {
+       display: inline-block;
+       font-size: 30px;
+     }
+
+     .oper {
+       border-radius: 50%;
+       width: 50px;
+       height: 50px;
+       border: solid 1px #dddddd;
+       line-height: 45px;
+       font-size: 40px !important;
+       cursor: pointer;
+     }
+
+     .oper:active {
+       border: solid 1px #aaaaaa;
+     }
+
+     .num {
+       margin: 0 15px;
+     }
+
+     .ctrl {
+       width: 80px;
+       height: 80px;
+       margin: 30px auto;
+       border: solid 1px #2d64b3;
+       border-radius: 50%;
+       text-align: center;
+     }
+
+     .ctrl>div {
+       display: inline-block;
+       cursor: pointer;
+     }
+
+     .play {
+       width: 0;
+       height: 0;
+       border-top: 20px solid transparent;
+       border-left: 40px solid #2d64b3;
+       border-bottom: 20px solid transparent;
+       margin-top: 20px;
+       margin-left: 14px;
+     }
+
+     .stop {
+       width: 26px;
+       height: 26px;
+       background: #2d64b3;
+       margin-top: 25px;
+     }
+     
+     .time-str {
+        text-align: center;
+        font-size: 22px;
+        color: #333333;
+     }
+     
+     .time-str b {
+       min-width: 70px;
+     }
+
+   </style>
+ </head>
+
+ <body>
+   <div class="con">
+     <div class="speed">
+       <b class="oper" id="btnMinus">-</b>
+       <b class="num" id="rVal"></b>
+       <b class="oper" id="btnAdd">+</b>
+     </div>
+     <div class="ctrl">
+       <div class="play" id="btnPlay"></div>
+       <div class="stop" style="display:none" id="btnStop"></div>
+     </div>
+     <div class="time-str">
+       <b id="theTime">00:00</b>
+     </div>
+   </div>
+   <script>
+     // if(!window.AudioContext) {
+     //   alert("您的系统不支持该功能")
+     // }
+     var context = new(window.AudioContext || window.webkitAudioContext)();
+     // 用来记录节奏的第几拍 目前是第一拍和后面的不一样声音
+     var count = 0;
+     // 播放状态
+     var playing = false;
+     
+     var tTimer;
+
+     window.addEventListener("load", function () {
+       init();
+     })
+     //初始化
+     function init() {
+       initElement();
+       bindEvent();
+     }
+     //初始化元素
+     function initElement() {
+      // 目前不写应该也行 谷歌直接就自动绑定id到window对象
+       window.btnMinus = document.getElementById("btnMinus");
+       window.rVal = document.getElementById("rVal");
+       window.rVal.textContent = getSaveValue();
+       window.btnAdd = document.getElementById("btnAdd");
+       window.btnPlay = document.getElementById("btnPlay");
+       window.btnStop = document.getElementById("btnStop");
+       window.theTime = document.getElementById("theTime");
+     }
+     //获取值
+     function getSaveValue() {
+       var v = 150;
+       try {
+         v = localStorage.rhythm || v;
+       } catch (e) {
+         console.log(e);
+       }
+       return v;
+     }
+
+     //保存值
+     function saveValue(v) {
+       try {
+         localStorage.rhythm = v;
+       } catch (e) {}
+     }
+
+     // 绑定事件
+     function bindEvent() {
+       btnMinus.addEventListener("click", function () {
+         onAdd(-5);
+       })
+       btnAdd.addEventListener("click", function () {
+         onAdd(5);
+       })
+       btnPlay.addEventListener("click", function () {
+         onPlay();
+       })
+       btnStop.addEventListener("click", function () {
+         onStop();
+       })
+     }
+
+     // 增加或者减少速度
+     function onAdd(n) {
+       var oVal = parseInt(rVal.textContent);
+       var v = oVal;
+       v = v + n;
+       if (v < 60) {
+         v = 60;
+       }
+       if (v > 300) {
+         v = 300
+       }
+       if (v == oVal) {
+         return;
+       }
+       onValueChange(v);
+     }
+
+     // 速度发生变化
+     function onValueChange(v) {
+       //console.log(v)
+       rVal.textContent = v;
+       saveValue(v);
+     }
+
+     //开始
+     function onPlay() {
+       playing = true;
+       btnPlay.style.display = "none";
+       btnStop.style.display = "inline-block";
+       onRhythmStart();
+       onTimeStart();
+     }
+
+     //停止
+     function onStop() {
+       playing = false;
+       count = 0;
+       clearTimeout(tTimer);
+       btnPlay.style.display = "inline-block";
+       btnStop.style.display = "none";
+     }
+
+     // 播放之前处理
+     function onRhythmStart() {
+       var p = parseInt(rVal.textContent);
+       var interval = 60 / p;
+       var pps = 4; //每小节几拍
+       playRhythm(count, interval)
+         .then(function () {
+           if (playing) {
+             count++;
+             if (count >= pps) {
+               count = count % pps;
+             }
+             onRhythmStart();
+           }
+         })
+     }
+     //播放 参数: 第几拍, 播放的时长
+     function playRhythm(count, time) {
+       return new Promise((rs, rj) => {
+         // 振荡器
+         var o = context.createOscillator();
+         //console.log(o.stop)
+         //o.connect(context.destination);
+         // 如果不是用Gain 声音比较难听
+         var g = context.createGain();
+         o.connect(g);
+         // 先把音量变为0
+         //  g.gain.setValueAtTime(0, context.currentTime)
+         // 再变为1  这两行加上以后 感觉声音发闷 发小 但是声音会比较柔和
+         //  g.gain.linearRampToValueAtTime(1, context.currentTime + 0.01)
+         // 多少秒后 声音慢慢降低... 第一个参数是最后要变成的音量 第二个是多少秒以后  还有一个函数linearRampToValueAtTime 是多少秒后 音量变为某个数值 这两个不一样
+         g.gain.exponentialRampToValueAtTime(
+           0.00001, context.currentTime + time
+         );
+         g.connect(context.destination);
+         if (count == 0) { //第一拍换个声音
+           o.frequency.value = 440;
+         } else {
+           o.frequency.value = 300;
+         }
+         o.type = "sine";
+         o.start(context.currentTime);
+         //console.log(context.currentTime+time)
+         o.stop(context.currentTime + time);
+         o.onended = function () {
+           rs();
+         }
+       })
+     }
+     
+     function onTimeStart() {
+       tTimer = setTimeout(function() {
+         timeStart();
+       }, 1000)
+     }
+     
+     function timeStart() {
+       if(!playing) {
+         return;
+       }
+       try {
+         var text = theTime.textContent;
+         var arr = text.split(":");
+         var m = parseInt(arr[0]);
+         var s = parseInt(arr[1]);
+         s++;
+         if(s > 59) {
+            s = 0;
+            m++;
+            if(m > 59) {
+              m = 0;
+            }
+         }
+         theTime.textContent = fixNum(m) + ":" + fixNum(s);
+         
+         tTimer = setTimeout(function() {
+           timeStart();
+         }, 1000);   
+       }
+       catch(e) {
+         theTime.textContent = "00:00";
+       }
+     }
+    function fixNum(num) {
+      num = parseInt(num);
+      if (num < 10) return "0" + num;
+      return num;
+    }
+   </script>
+ </body>
+
+ </html>
