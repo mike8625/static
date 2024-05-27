@@ -1,0 +1,43 @@
+/* 热度趋势 */
+.c-hlw-rdqs {
+  position: absolute;
+  width: 462px;
+  height: 230px;
+  top: 214px;
+  left: 753px;
+  
+  //border:solid 1px red;
+}
+
+/* 溯源分析 */
+.c-hlw-syfx {
+  position: absolute;
+  width: 462px;
+  height: 240px;
+  top: 516px;
+  left: 753px;
+  
+  //border:solid 1px red;
+}
+
+/* 关键媒体 */
+.c-hlw-gjmt {
+  position: absolute;
+  width: 462px;
+  height: 230px;
+  top: 214px;
+  left: 1341px;
+  
+  //border:solid 1px red;
+}
+
+/* 情感分析 */
+.c-hlw-qgfx {
+  position: absolute;
+  width: 496px;
+  height: 226px;
+  top: 522px;
+  left: 1330px;
+  
+  //border:solid 1px red;
+}

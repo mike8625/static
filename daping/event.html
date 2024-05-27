@@ -1,0 +1,37 @@
+<!doctype HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>大事件分析</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <link rel="stylesheet" type="text/css" href="css/common.css"/>
+    <link rel="stylesheet" type="text/css" href="css/c-style.css"/>
+    <link rel="stylesheet" type="text/css" href="css/w-style.css"/>
+    <script type="text/javascript" src="../js/lib/jquery.js"></script>
+  </head>
+  <body>
+     <div class="w-wrap-bg">   
+        <img src="images/cz-bg3.jpg" border="0" usemap="#Map2">
+        <map name="Map2">
+          <area shape="rect" coords="86,29,225,95" href="index.html">
+          <area shape="rect" coords="287,30,426,94" href="media.html">
+          <area shape="rect" coords="1499,27,1636,96" href="event.html">
+          <area shape="rect" coords="1698,26,1837,95" href="jianguan.html">
+        </map>
+     </div>
+     <script type="text/javascript" src="js/lib/jquery.js"></script>
+    <script type="text/javascript">
+        $(function(){
+          $(window).resize(onWinResize);
+          function onWinResize() {
+            let w = document.documentElement.clientWidth;
+            $(document.documentElement).css("zoom", w/1920)
+            //$(document.documentElement).css("transform-origin", "left top")
+            //$(document.documentElement).css("transform", "scale(" + w/1920 + ")")
+            
+          }
+          onWinResize();
+        }) 
+    </script>            
+  </body>
+</html>
