@@ -1,0 +1,116 @@
+{
+  "name": "Mike",
+  "avatar": "img/avatar.jpg",
+  "gender": "Male",
+  "birth": "1983-10",
+  "nativePlace": "TianJin",
+  "currentCity": "TianJin",
+  "major": "Law",
+  "education": "Undergraduate",
+  "phone": "15822217182",
+  "wechat": "img/qr.png",
+  "email": "mike8625@163.com",
+  "page": "https://gitee.com/mike8625",
+  "jobIntension": "Web FrontEnd Developer",
+  "salaryExpection": "10k+",
+  "selfAssessment": "<p style='text-indent:2em'>Master of JS, Css3, Html5. Good at using frontend frameworks and libs like Vue, jquery etc.  Proficient in develop tools like vscode, HbuilderX. Able to coding browser extension. skillful at solving browser compatible. Do well in Team work.</p>",
+  "experience": [{
+      "time": "2015.7 - Present",
+      "name": "JinWanWangLuo Technology Develop Co.Ltd",
+      "number": "Above 100",
+      "desc": "Web page, miniProgram Coding, FrontEnd Framework Build"
+    },
+    {
+      "time": "2014.12 - 2015.06",
+      "name": "iHeath Co.Ltd",
+      "number": "Above 100",
+      "desc": "Web page Coding"
+    },
+    {
+      "time": "2012.07 - 2014.06",
+      "name": "ZhuoLang Technology Co.Ltd",
+      "number": "Above 100",
+      "desc": "Web page, Browser Extension Coding, FrontEnd Framework Build"
+    },
+    {
+      "time": "2011.04 - 2012.06",
+      "name": "ShenZhouTaiYue Co.Ltd",
+      "number": "Above 3000",
+      "desc": "Web page Coding, Data Maintain"
+    },
+    {
+      "time": "2007.07 - 2011.04",
+      "name": "ZhongQiDongLi Technology Co.Ltd",
+      "number": "Above 3000",
+      "desc": "Js Coding, FrontEnd Framework Design, Newer Traning"
+    }
+  ],
+  "project": [{
+      "time": "2016.6 - Present",
+      "name": "All Media Paltform",
+      "tecnology": "Vue + ElementUI",
+      "desc": "BigScreen, WebIM, AdminPage Coding and Framework build"
+    }, {
+      "time": "2021.04 - 2021.05",
+      "name": "Long Match Retrace",
+      "tecnology": "miniProgram",
+      "desc": "Get Wechat step, calculate the distance, and show it on the map whitch the way Red Army get by. It mainly includes homepage, ranking, medal and mine"
+    },
+    {
+      "time": "2012.09 - 2014.04",
+      "name": "BigData Analyze System",
+      "tecnology": "js, Browser Extension",
+      "desc": "Web Page show (chart, list), Get HTML node selector by browser extension and take the data to the server."
+    },
+    {
+      "time": "2007.07- 2011.04",
+      "name": "WorkStation",
+      "tecnology": "js, css",
+      "desc": "Develop Browser, IM, Email, Calendar etc"
+    }
+  ],
+  "eduExp": [{
+    "school": "Naikai university",
+    "name": "Undergraduate ",
+    "time": "1999.09 - 2005.07"
+  }],
+  "certificate": [{
+    "name": "Computer Level Examination",
+    "time": "2013.11",
+    "desc": "Middle Rank"
+
+  }, {
+    "name": "Wangxuan News Technology Award",
+    "time": "2019.04",
+    "desc": "First Prize"
+  }],
+  "hobbies": "Pingpong, Music",
+  "plus": {
+    "summary": {
+      "stamina": 70,
+      "speed": 70,
+      "technology": 85,
+      "learn": 85,
+      "implementation": 90,
+      "team": 90
+    },
+    "skill": {
+      "Vue": 85,
+      "Jquery": 90,
+      "Css": 85,
+      "Browser Extension": 70,
+      "Hybrid": 80,
+      "PS": 75
+    },
+    "experience": [{
+        "type": "image",
+        "src": ""
+      },
+      {
+        "type": "lottie",
+        "src": ""
+      }
+    ],
+    "project": []
+  }
+}
