@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Robot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <!-- 清除缓存 -->
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Cache-control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Cache" content="no-cache">    
+    <meta http-equiv="Expires" content="0" />    
+    <link rel="stylesheet" type="text/css" href="css/vant.min.css"/>
+    <link rel="stylesheet" type="text/css" href="css/style.css"/>
+  </head>
+  <body>
+    <div id="app" v-cloak class="wrap">
+      <svg :width="boxWidth" :height="boxHeight" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+        <!-- 黑色背景 -->
+        <rect class="robot-bg" x="0" y="0" width="400" height="300" />
+        
+        <!-- 机器人表情组（眼睛尺寸缩小） -->
+        <g id="robot-emoji">
+          <!-- 左眼（半径从30缩小到20） -->
+          <path ref="leftEye" class="robot-eye" d="" />
+          <!-- 右眼（半径从30缩小到20） -->
+          <path ref="rightEye" class="robot-eye" d="" />
+          
+          <!-- 嘴巴 -->
+          <path ref="mouth" class="robot-mouth" d="" />
+        </g>
+      </svg> 
+      <video ref="vd" width=400 height=300 class="myvd" v-show="vdShow" @loadedMetadata="onPlay()"></video>
+      <div class="mask" v-show="optShow" @click="optShow=false"></div>
+      <div class="show-exp" @click="optShow=true"></div>
+      <div class="explist" v-show="optShow">
+        <div class="opt-title">表情</div>
+        <a @click.stop="setExpression('normal')">正常</a>
+        <a @click.stop="setExpression('surprise')">惊讶</a>
+        <a @click.stop="setExpression('smile')">微笑</a>
+        <a @click.stop="setExpression('fearful')">害怕</a>
+        <a @click.stop="setExpression('sad')">难过</a>
+        <a @click.stop="setExpression('angry')">生气</a>
+        <div class="opt-title">视频窗口</div>
+        <van-cell center title="显示" @click.stop>
+          <template #right-icon>
+            <van-switch v-model="vdShow" size="12" />
+          </template>
+        </van-cell>
+      </div>  
+      <van-overlay :show="loading" class="loading-mask">
+        <div class="loadingbox">
+         <van-loading type="spinner" color="#1989fa" />
+        </div>        
+      </van-overlay>    
+    </div>  
+    <script src="js/lib/vue.min.js"></script>
+    <script src="js/lib/vant.min.js"></script>
+    <script src="js/lib/face-api.min.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
