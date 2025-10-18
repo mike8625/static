@@ -88,10 +88,10 @@ var vueApp = new Vue({
     async loadModel() {
       // load face detection and face expression recognition models
       // and load face landmark model for face alignment
-      await faceapi.nets.tinyFaceDetector.load('/model/');
-      await faceapi.loadSsdMobilenetv1Model('/model/');      
-      await faceapi.loadFaceLandmarkModel('/model/')
-      await faceapi.loadFaceExpressionModel('/model/')
+      await faceapi.nets.tinyFaceDetector.load('./model/');
+      await faceapi.loadSsdMobilenetv1Model('./model/');      
+      await faceapi.loadFaceLandmarkModel('./model/')
+      await faceapi.loadFaceExpressionModel('./model/')
       
       this.init()
     },
