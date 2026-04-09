@@ -17,11 +17,23 @@
       // }
       // setRem();
       // window.addEventListener('resize', setRem);
+      
+      // 屏幕常亮
+      document.addEventListener('DOMContentLoaded', function () {
+            let noSleep = new NoSleep();
+            document.addEventListener('click',
+              function enableNoSleep () {
+                noSleep.enable();
+                document.removeEventListener('click', enableNoSleep, false);
+              },
+              false);
+      });      
     </script>
     <script type="module" crossorigin src="./assets/index-DngrTlzM.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Cor5_9qw.css">
   </head>
   <body>
     <div id="root"></div>
+    <script src="./js/NoSleep.min.js"></script>
   </body>
 </html>
