@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SimpleRTC 一对多测试</title>
+<style>
+body { font-family: system-ui; padding:16px; max-width:900px; margin:0 auto; }
+.box { border:1px solid #ccc; padding:12px; border-radius:8px; margin-bottom:12px; }
+textarea { width:100%; height:100px; }
+button { padding:6px 10px; margin:4px; cursor:pointer; }
+.log { white-space:pre-wrap; background:#f5f5f5; padding:8px; max-height:250px; overflow:auto; }
+.red { color:#c00; }
+.green { color:#080; }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <button onclick="requestWakeLock();">wakeup</button>
+  <h3>角色选择</h3>
+  <div>
+    <label><input type="radio" name="role" value="master" checked> 主节点（可以连多个加入者）</label>
+    <label><input type="radio" name="role" value="peer"> 加入者</label>
+  </div>
+  <div>通道名：<input id="channelLabel" value="1111"></div>
+</div>
+
+<div class="box" id="masterPanel">
+  <h4>主节点操作</h4>
+  <button onclick="createNewPeer()">新建一个连接（生成Offer）</button>
+  <div>
+    <p>复制下面的Offer给加入者：</p>
+    <textarea id="outOffer"></textarea>
+  </div>
+  <div>
+    <p>粘贴对方返回的Answer：</p>
+    <textarea id="inAnswer"></textarea>
+    <button onclick="setupAnswer()">应用Answer</button>
+  </div>
+  <div>
+    <p>发给所有已连接的人：<input id="sendInput"><button onclick="sendAll()">群发</button></p>
+  </div>
+  <div>
+    <h5>连接列表</h5>
+    <div id="peerList"></div>
+  </div>
+</div>
+
+<div class="box" id="peerPanel" style="display:none">
+  <h4>加入者操作</h4>
+  <p>粘贴主节点发来的Offer：</p>
+  <textarea id="peerOffer"></textarea>
+  <button onclick="genAnswer()">生成Answer</button>
+  <p>复制下面Answer发给主节点：</p>
+  <textarea id="outAnswer"></textarea>
+  <div>
+    <p>发送消息：<input id="peerSendInput"><button onclick="peerSend()">发送</button></p>
+  </div>
+</div>
+
+<div class="box">
+  <h4>日志</h4>
+  <div class="log" id="logBox"></div>
+</div>
+
+<script>
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    console.log('屏幕常亮已启用');
+  } catch (err) {
+    console.error('请求失败:', err.name);
+  }
+}  
+// ==============================================
+// SimpleRTC 类，去掉#，下划线约定私有
+// ==============================================
+class SimpleRTC {
+  constructor() {
+    this._pc = null;
+    this._dc = null;
+    this._channelLabel = '';
+    this._candidates = [];
+
+    // 外部回调
+    this.onConnect = null;
+    this.onMsg = null;
+    this.onClose = null;
+    this.onError = null;
+  }
+
+  async createOffer(channelLabel) {
+    try {
+      this._channelLabel = channelLabel;
+      this._createPeerConnection();
+      this._dc = this._pc.createDataChannel(channelLabel);
+      this._bindDCEvent();
+
+      const offer = await this._pc.createOffer();
+      await this._pc.setLocalDescription(offer);
+      await this._waitIceGathering();
+
+      return JSON.stringify({
+        type: 'offer',
+        sdp: this._pc.localDescription.sdp,
+        candidates: this._getAllCandidates()
+      });
+    } catch (err) {
+      this._handleError(err);
+      throw err;
+    }
+  }
+
+  async answer(offerString) {
+    try {
+      const data = JSON.parse(offerString);
+      if (data.type !== 'offer') throw new Error('不是合法offer包');
+
+      this._channelLabel = data.channelLabel || '';
+      this._createPeerConnection();
+
+      await this._pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+      for (const c of (data.candidates || [])) {
+        await this._pc.addIceCandidate(new RTCIceCandidate(c));
+      }
+
+      const answer = await this._pc.createAnswer();
+      await this._pc.setLocalDescription(answer);
+      await this._waitIceGathering();
+
+      return JSON.stringify({
+        type: 'answer',
+        sdp: this._pc.localDescription.sdp,
+        candidates: this._getAllCandidates()
+      });
+    } catch (err) {
+      this._handleError(err);
+      throw err;
+    }
+  }
+
+  async receiveAnswer(answerString) {
+    try {
+      const data = JSON.parse(answerString);
+      if (data.type !== 'answer') throw new Error('不是合法answer包');
+
+      await this._pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
+      for (const c of (data.candidates || [])) {
+        await this._pc.addIceCandidate(new RTCIceCandidate(c));
+      }
+    } catch (err) {
+      this._handleError(err);
+      throw err;
+    }
+  }
+
+  sendMsg(str) {
+    if (!this._dc || this._dc.readyState !== 'open') {
+      throw new Error('dataChannel还没准备好');
+    }
+    this._dc.send(str);
+  }
+
+  _createPeerConnection() {
+    if (this._pc) {
+      this._pc.close();
+    }
+    this._pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    });
+    this._candidates = [];
+    this._pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        this._candidates.push(e.candidate.toJSON());
+      }
+    };
+    this._pc.ondatachannel = (e) => {
+      this._dc = e.channel;
+      this._bindDCEvent();
+    };
+    this._pc.oniceconnectionstatechange = () => {
+      const s = this._pc.iceConnectionState;
+      if (s === 'failed' || s === 'disconnected') {
+        this._handleError(new Error(`ice状态:${s}`));
+      }
+    };
+  }
+
+  _getAllCandidates() {
+    return this._candidates;
+  }
+
+  _waitIceGathering() {
+    return new Promise((resolve) => {
+      if (this._pc.iceGatheringState === 'complete') {
+        resolve();
+        return;
+      }
+      this._pc.onicegatheringstatechange = () => {
+        if (this._pc.iceGatheringState === 'complete') {
+          resolve();
+        }
+      };
+    });
+  }
+
+  _bindDCEvent() {
+    this._dc.onopen = () => {
+      if (typeof this.onConnect === 'function') {
+        this.onConnect();
+      }
+    };
+    this._dc.onmessage = (ev) => {
+      if (typeof this.onMsg === 'function') {
+        this.onMsg(ev.data);
+      }
+    };
+    this._dc.onclose = () => {
+      if (typeof this.onClose === 'function') {
+        this.onClose();
+      }
+    };
+    this._dc.onerror = (err) => {
+      this._handleError(err);
+    };
+  }
+
+  _handleError(e) {
+    if (typeof this.onError === 'function') {
+      this.onError(e);
+    }
+  }
+
+  destroy() {
+    if (this._dc) {
+      this._dc.close();
+      this._dc = null;
+    }
+    if (this._pc) {
+      this._pc.close();
+      this._pc = null;
+    }
+    this._candidates = [];
+  }
+}
+
+// ==============================================
+// 页面业务代码
+// ==============================================
+let masterPeerList = []; // 主节点保存多个SimpleRTC实例
+let currentPeerRTC = null; // 加入者单独一个rtc实例
+
+const logBox = document.getElementById('logBox');
+function log(txt, isErr = false) {
+  const d = new Date();
+  const line = `[${d.toLocaleTimeString()}] ${txt}\n`;
+  logBox.textContent += line;
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+// 切换角色
+document.querySelectorAll('input[name="role"]').forEach(radio=>{
+  radio.onchange = ()=>{
+    const isMaster = radio.value === 'master';
+    document.getElementById('masterPanel').style.display = isMaster ? 'block' : 'none';
+    document.getElementById('peerPanel').style.display = isMaster ? 'none' : 'block';
+  }
+})
+
+// -------- 主节点逻辑 --------
+let lastCreatedRtc = null;
+
+async function createNewPeer() {
+  const label = document.getElementById('channelLabel').value;
+  const rtc = new SimpleRTC();
+
+  rtc.onConnect = ()=>{
+    log(`✅ 一个连接通道打开了`);
+    renderPeerList();
+  };
+  rtc.onMsg = (msg)=>{
+    log(`📥 收到消息：${msg}`);
+  };
+  rtc.onClose = ()=>{
+    log(`❌ 一个通道关闭`);
+    renderPeerList();
+  };
+  rtc.onError = (e)=>{
+    log(`⚠️ 错误: ${e.message}`, true);
+  };
+
+  const offerStr = await rtc.createOffer(label);
+  document.getElementById('outOffer').value = offerStr;
+  lastCreatedRtc = rtc;
+  log('📤 生成新Offer，等待对方Answer');
+}
+
+async function setupAnswer() {
+  const ansText = document.getElementById('inAnswer').value.trim();
+  if (!ansText || !lastCreatedRtc) {
+    log('请先生成offer并且粘贴answer');
+    return;
+  }
+  try {
+    await lastCreatedRtc.receiveAnswer(ansText);
+    masterPeerList.push(lastCreatedRtc);
+    log('✅ Answer应用成功，等待通道打开');
+    lastCreatedRtc = null;
+  } catch (e) {
+    log('应用answer失败:' + e.message, true);
+  }
+}
+
+function sendAll() {
+  const text = document.getElementById('sendInput').value.trim();
+  if (!text) return;
+  let okCount = 0;
+  masterPeerList.forEach(r=>{
+    try {
+      r.sendMsg(text);
+      okCount++;
+    }catch(e){}
+  })
+  log(`📤 群发【${text}】成功发给 ${okCount} 个节点`);
+}
+
+function renderPeerList() {
+  const wrap = document.getElementById('peerList');
+  wrap.innerHTML = '';
+  masterPeerList.forEach((rtc, idx)=>{
+    const div = document.createElement('div');
+    div.textContent = `连接${idx+1} ` + (rtc._dc?.readyState);
+    const btn = document.createElement('button');
+    btn.textContent = '断开';
+    btn.onclick = ()=>{
+      rtc.destroy();
+      masterPeerList.splice(idx,1);
+      renderPeerList();
+      log(`连接${idx+1}手动断开`);
+    }
+    div.appendChild(btn);
+    wrap.appendChild(div);
+  })
+}
+
+// -------- 加入者逻辑 --------
+async function genAnswer() {
+  const offerTxt = document.getElementById('peerOffer').value.trim();
+  if (!offerTxt) {
+    log('请粘贴主节点offer');
+    return;
+  }
+  currentPeerRTC = new SimpleRTC();
+  currentPeerRTC.onConnect = ()=>{
+    log('✅ 我作为加入者，通道打开！');
+  };
+  currentPeerRTC.onMsg = (msg)=>{
+    log(`📥 收到消息：${msg}`);
+  };
+  currentPeerRTC.onClose = ()=>{
+    log('❌ 通道关闭');
+  };
+  currentPeerRTC.onError = (e)=>{
+    log('⚠️ 加入者错误：' + e.message, true);
+  };
+  try {
+    const ansStr = await currentPeerRTC.answer(offerTxt);
+    document.getElementById('outAnswer').value = ansStr;
+    log('📤 answer生成完成，复制发给主节点');
+  }catch(err){
+    log('生成answer失败：' + err.message, true);
+  }
+}
+
+function peerSend() {
+  const text = document.getElementById('peerSendInput').value.trim();
+  if (!text || !currentPeerRTC) return;
+  try {
+    currentPeerRTC.sendMsg(text);
+    log(`📤 我发送：${text}`);
+  }catch(e){
+    log('发送失败：' + e.message, true);
+  }
+}
+</script>
+</body>
+</html>
