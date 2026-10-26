@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebRTC 拖拽圆球同步｜带观察者模式（修复观察者收消息）</title>
+<style>
+*{box-sizing:border-box;font-family:system-ui}
+body{margin:0;padding:16px;overflow:hidden;height:100vh}
+.warn{color:red}
+.ctrl-area{margin-bottom:12px;padding:12px;border:1px solid #ccc;border-radius:10px}
+input{padding:6px;width:120px}
+button{padding:6px 10px;cursor:pointer}
+.status{color:#226622;margin:6px 0}
+.log-box{border:1px solid #aaa;padding:8px;height:180px;overflow-y:auto;background:#111;color:#0f0;font-family:monospace;font-size:11px;white-space:pre-wrap}
+.btn-row{margin:10px 0;display:flex;gap:10px}
+.color-btn{width:100px;height:60px;border:none;border-radius:10px;font-size:16px;cursor:pointer}
+.red{background:#ffcccc;color:#900}
+.red.active{background:#ff4444;color:white}
+.yellow{background:#fff7cc;color:#996600}
+.yellow.active{background:#ffcc00;color:#222}
+.blue{background:#cce5ff;color:#004499}
+.blue.active{background:#3388ff;color:white}
+#dragBall{
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:#4285F4;
+  position:absolute;
+  left:150px;
+  top:300px;
+  touch-action:none;
+  user-select:none;
+}
+</style>
+</head>
+<body>
+<div class="warn">⚠️ 必须 http 打开页面！https会阻塞ws！</div>
+<div class="ctrl-area">
+  <div>
+    <label><input type="radio" name="role" value="master"> 我是主机</label>
+    <label><input type="radio" name="role" value="slave"> 我是从机</label>
+    <label><input type="radio" name="role" value="observer"> 我是观察者</label>
+  </div>
+  <input id="roomInput" placeholder="房间号 1111" value="1111">
+  <button id="joinBtn">加入房间配对</button>
+  <div class="status" id="connStatus">等待加入房间</div>
+</div>
+<div class="btn-row">
+  <button class="color-btn red" data-color="red">红色</button>
+  <button class="color-btn yellow" data-color="yellow">黄色</button>
+  <button class="color-btn blue" data-color="blue">蓝色</button>
+</div>
+<div>
+  <b>调试日志👇</b>
+  <div id="logBox" class="logBox"></div>
+</div>
+<div id="dragBall"></div>
+<script>
+const WS_URL = "ws://192.168.8.100:8765";
+const peerConfig = { iceServers: [] };
+let pc = null;
+let dc = null;
+let role = null;
+let ws = null;
+let roomId = "";
+const colorBtns = document.querySelectorAll('.color-btn');
+const roomInput = document.getElementById('roomInput');
+const joinBtn = document.getElementById('joinBtn');
+const connStatus = document.getElementById('connStatus');
+const logBox = document.getElementById('logBox');
+const ball = document.getElementById('dragBall');
+
+const THROTTLE_MS = 30;
+const MIN_DELTA = 2;
+let lastSendTime = 0;
+let lastX = 0, lastY = 0;
+
+function log(msg) {
+  const time = new Date().toLocaleTimeString();
+  logBox.textContent += `[${time}] ${msg}\n`;
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function setBallPos(x,y){
+  ball.style.left = x + "px";
+  ball.style.top = y + "px";
+}
+
+// 发给ws广播（给房间里所有观察者）
+function broadcastByWs(payload){
+  if(!ws || ws.readyState !== WebSocket.OPEN) return;
+  const pkg = {
+    type: "broadcast",
+    room: roomId,
+    data: payload
+  }
+  ws.send(JSON.stringify(pkg));
+}
+
+function sendBallPos(x,y){
+  if(!dc || dc.readyState !== "open") return;
+  if(role === "observer") return;
+  const now = Date.now();
+  if (now - lastSendTime < THROTTLE_MS) return;
+  const dx = Math.abs(x - lastX);
+  const dy = Math.abs(y - lastY);
+  if(dx < MIN_DELTA && dy < MIN_DELTA) return;
+  const msg = {cmd:"move", x:x, y:y, who:role};
+  dc.send(JSON.stringify(msg));
+  broadcastByWs(msg);
+  lastSendTime = now;
+  lastX = x;
+  lastY = y;
+}
+
+let isDragging = false;
+let offsetX, offsetY;
+function dragStart(e){
+  if(role === "observer") return;
+  isDragging = true;
+  const pt = getPoint(e);
+  const rect = ball.getBoundingClientRect();
+  offsetX = pt.x - rect.left;
+  offsetY = pt.y - rect.top;
+}
+function dragMove(e){
+  if(!isDragging) return;
+  e.preventDefault();
+  const pt = getPoint(e);
+  const x = pt.x - offsetX;
+  const y = pt.y - offsetY;
+  setBallPos(x,y);
+  sendBallPos(x,y);
+}
+function dragEnd(){
+  isDragging = false;
+}
+function getPoint(e){
+  if(e.touches && e.touches.length>0){
+    return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+  }else{
+    return {x:e.clientX, y:e.clientY};
+  }
+}
+ball.addEventListener('mousedown', dragStart);
+ball.addEventListener('touchstart', dragStart, {passive:false});
+document.addEventListener('mousemove', dragMove);
+document.addEventListener('touchmove', dragMove, {passive:false});
+document.addEventListener('mouseup', dragEnd);
+document.addEventListener('touchend', dragEnd);
+
+colorBtns.forEach(btn=>{
+  btn.onclick = ()=>{
+    if(role === "observer"){
+      log("⚠️ 观察者不能操作按钮");
+      return;
+    }
+    const c = btn.dataset.color;
+    btn.classList.toggle('active');
+    log(`点击本地按钮: ${c}`);
+    if(dc && dc.readyState === 'open'){
+      const sendData = {cmd:'toggle', color:c, who:role};
+      dc.send(JSON.stringify(sendData));
+      broadcastByWs(sendData);
+      log(`📤 按钮消息: ${JSON.stringify(sendData)}`);
+    }else{
+      log(`❌ DataChannel未打开 state=${dc?.readyState}`)
+    }
+  }
+})
+
+function handleRemoteMsg(msg){
+  if(msg.cmd === 'toggle'){
+    const target = document.querySelector(`.color-btn[data-color="${msg.color}"]`);
+    if(target) {
+      target.classList.toggle('active');
+      if(role === "observer"){
+        log(`📢 ${msg.who === "master" ? "主机" : "从机"} 正在操作....`);
+      }else{
+        log(`📥 同步按钮：${msg.color}`);
+      }
+    }
+  }else if(msg.cmd === 'move'){
+    setBallPos(msg.x, msg.y);
+    if(role === "observer"){
+      log(`📢 ${msg.who === "master" ? "主机" : "从机"} 正在操作....`);
+    }
+  }
+}
+
+function bindDataChannel(channel, statusEl){
+  dc = channel;
+  channel.onopen = ()=>{
+    statusEl.innerText = "✅ DataChannel通道打开，可以同步！";
+    log("===== ✅ DataChannel onopen 触发 =====");
+  }
+  channel.onmessage = (ev)=>{
+    try{
+      const msg = JSON.parse(ev.data);
+      handleRemoteMsg(msg);
+    }catch(e){
+      log(`❌ 解析消息失败: ${e.message}`);
+    }
+  }
+  channel.onclose = ()=>{
+    statusEl.innerText = "❌ DataChannel关闭";
+    log("===== ❌ DataChannel 关闭 =====");
+  }
+  channel.onerror = (err)=>{
+    log(`❌ DataChannel异常: ${err.message}`);
+  }
+}
+
+function createPeer(){
+  pc = new RTCPeerConnection(peerConfig);
+  pc.onicecandidate = (e)=>{
+    if(e.candidate){
+      const m = JSON.stringify({
+        type:"candidate",
+        role,
+        room:roomId,
+        candidate:e.candidate
+      })
+      ws.send(m);
+    }
+  }
+  pc.oniceconnectionstatechange = ()=>{
+    log(`🔗 ICE状态: ${pc.iceConnectionState}`);
+  }
+  pc.onconnectionstatechange = ()=>{
+    log(`🔐 DTLS状态: ${pc.connectionState}`);
+  }
+  pc.ondatachannel = (e)=>{
+    log("📩 收到远端DataChannel！");
+    bindDataChannel(e.channel, connStatus);
+  }
+  return pc;
+}
+
+joinBtn.onclick = async ()=>{
+  const r = document.querySelector('input[name="role"]:checked');
+  if(!r) return alert("先选主机/从机/观察者");
+  role = r.value;
+  roomId = roomInput.value.trim();
+  if(!roomId) return alert("输入房间号");
+  ws = new WebSocket(WS_URL);
+  ws.binaryType = "blob";
+  ws.onopen = ()=>{
+    log("✅ WS连接成功，加入房间 "+roomId + "，身份："+role);
+    const m = JSON.stringify({type:"join", role, room:roomId});
+    ws.send(m);
+  }
+  ws.onmessage = async (ev)=>{
+    let rawText;
+    if (ev.data instanceof Blob) {
+      rawText = await ev.data.text();
+    } else {
+      rawText = ev.data;
+    }
+    const m = JSON.parse(rawText);
+    // 重点：广播消息在这里给观察者消费
+    if(m.type === "broadcast"){
+      if(role === "observer"){
+        handleRemoteMsg(m.data);
+      }
+      return;
+    }
+
+    if(m.type === 'peerArrived'){
+      log("✅ 对方上线");
+      if(role === "master"){
+        pc = createPeer();
+        const dataChannelOpts = {ordered: false, maxRetransmits:0};
+        dc = pc.createDataChannel('syncChannel', dataChannelOpts);
+        bindDataChannel(dc, connStatus);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        const sendOfferMsg = JSON.stringify({type:"offer", role, room:roomId, sdp:offer.sdp});
+        ws.send(sendOfferMsg);
+        log("📤 发送offer");
+      }
+    }
+    if(m.type === 'offer' && role === 'slave'){
+      log("✅ 从机收到offer，生成answer");
+      pc = createPeer();
+      await pc.setRemoteDescription({type:"offer", sdp:m.sdp});
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      const ansMsg = JSON.stringify({type:"answer", role, room:roomId, sdp:answer.sdp});
+      ws.send(ansMsg);
+      log("📤 发送answer");
+    }
+    // 观察者收到offer，只回answer，但是不依赖这个rtc通道拿数据
+    if(m.type === 'offer' && role === 'observer'){
+      log("👀 观察者收到offer（仅完成协商，数据走ws广播）");
+      pc = createPeer();
+      await pc.setRemoteDescription({type:"offer", sdp:m.sdp});
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      const ansMsg = JSON.stringify({type:"answer", role, room:roomId, sdp:answer.sdp});
+      ws.send(ansMsg);
+      log("📤 观察者发送answer");
+    }
+    if(m.type === 'answer' && role === 'master'){
+      await pc.setRemoteDescription({type:"answer", sdp:m.sdp});
+      log("✅ 收到answer");
+    }
+    if(m.type === 'candidate'){
+      await pc.addIceCandidate(m.candidate);
+    }
+  }
+  ws.onerror = (err)=>{
+    log(`❌ WS错误: ${err}`);
+    connStatus.innerText = "WS出错";
+  }
+  ws.onclose = ()=>{
+    log(`❌ WS断开`);
+    connStatus.innerText = "WS断开";
+  }
+}
+</script>
+</body>
+</html>
