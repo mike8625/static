@@ -36,6 +36,7 @@ button{padding:6px 10px;cursor:pointer}
 </head>
 <body>
 <div class="warn">⚠️ 必须 http 打开页面！https会阻塞ws！</div>
+<button onclick="requestWakeLock();">wakeup</button>
 <div class="ctrl-area">
   <div>
     <label><input type="radio" name="role" value="master"> 我是主机</label>
@@ -57,6 +58,17 @@ button{padding:6px 10px;cursor:pointer}
 </div>
 <div id="dragBall"></div>
 <script>
+
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    console.log('屏幕常亮已启用');
+  } catch (err) {
+    console.error('请求失败:', err.name);
+  }
+}  
 const WS_URL = "ws://192.168.8.100:8765";
 const peerConfig = { iceServers: [] };
 let pc = null;
