@@ -1,0 +1,1 @@
+import{B as e,F as t,d as n,g as r,h as i,j as a,m as o}from"./BZnu3K.js";import{t as s}from"./CKBU1U.js";var c=r({name:`NotFound`});function l(r,s,c,l,u,d){let f=t(`router-link`);return a(),n(`div`,null,[i(f,{to:`/`},{default:e(()=>[...s[0]||=[o(`返回首页`,-1)]]),_:1}),s[1]||=o(` | 该页面不存在`,-1)])}var u=s(c,[[`render`,l]]);export{u as default};
