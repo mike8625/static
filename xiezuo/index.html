@@ -414,7 +414,7 @@
       if (S.timer) { clearTimeout(S.timer); S.timer = null; }
       S.elapsedMs += performance.now() - S.activeStart;
       S.pauseStart = performance.now();
-      releaseWakeLock();
+      // releaseWakeLock();
       updatePauseBtn();
       updateClock();
     }
@@ -428,7 +428,7 @@
       S.autoPaused = false;
       S.status = 'running';
       S.activeStart = performance.now();
-      requestWakeLock();
+      // requestWakeLock();
       schedule(S.nextDelay);
       updatePauseBtn();
       updateClock();
